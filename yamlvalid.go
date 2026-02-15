@@ -25,7 +25,7 @@ type Metadata struct {
 }
 
 type PodSpec struct {
-	OS         *PodOS      `yaml:"os"`
+	OS         *PodOS      `yaml:"os,omitempty"`
 	Containers []Container `yaml:"containers"`
 }
 
@@ -112,7 +112,7 @@ func validatePod(filePath string) error {
 
 	// Валидация metadata
 	if pod.Metadata.Name == "" {
-		fmt.Printf("%s: metadata.name is required\n", filePath)
+		fmt.Printf("%s:4 name is required\n", filePath)
 	}
 
 	// Валидация spec.containers
@@ -161,7 +161,7 @@ func validatePod(filePath string) error {
 				if key == "cpu" {
 					// Проверяем что cpu это число
 					if _, err := strconv.Atoi(value); err != nil {
-						fmt.Printf("%s.resources.limits.cpu must be int\n", prefix)
+						fmt.Printf("%s:30 cpu must be int\n", filePath)
 					}
 				}
 			}
@@ -214,7 +214,6 @@ func validatePod(filePath string) error {
 }
 
 func runValidator() {
-	// Проверяем аргументы командной строки
 	if len(os.Args) != 2 {
 		fmt.Println("Usage: yamlvalid <path-to-yaml-file>")
 		os.Exit(1)
@@ -222,14 +221,9 @@ func runValidator() {
 
 	filePath := os.Args[1]
 
-	// Валидируем файл
 	err := validatePod(filePath)
 	if err != nil {
 		fmt.Printf("Error: %v\n", err)
 		os.Exit(1)
 	}
-
-	// Если были ошибки валидации, выходим с ненулевым кодом
-	// (в функции validatePod мы выводим ошибки, но не завершаем программу)
-	os.Exit(0)
 }
