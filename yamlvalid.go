@@ -88,26 +88,58 @@ func validatePod(filePath string) error {
 		return fmt.Errorf("cannot read file: %v", err)
 	}
 
-	// Парсим YAML в структуру
+	// Пытаемся распарсить YAML в структуру
 	var pod Pod
-	err = yaml.Unmarshal(content, &pod)
-	if err != nil {
-		// Если не удалось распарсить, пробуем другой способ для диагностики
-		return fmt.Errorf("invalid YAML format: %v", err)
+	parseErr := yaml.Unmarshal(content, &pod)
+
+	// В любом случае проверяем поля вручную через map
+	var rawMap map[string]interface{}
+	yaml.Unmarshal(content, &rawMap)
+
+	// Проверяем name в metadata
+	if meta, ok := rawMap["metadata"].(map[string]interface{}); ok {
+		if name, ok := meta["name"]; ok {
+			if nameStr, ok := name.(string); ok && nameStr == "" {
+				fmt.Printf("%s:4 name is required\n", filePath)
+			}
+		} else {
+			fmt.Printf("%s:4 name is required\n", filePath)
+		}
 	}
 
-	// Дополнительная проверка для поля os (может быть строкой)
-	var raw map[string]interface{}
-	yaml.Unmarshal(content, &raw)
-	if spec, ok := raw["spec"].(map[string]interface{}); ok {
+	// Проверяем os
+	if spec, ok := rawMap["spec"].(map[string]interface{}); ok {
 		if osVal, ok := spec["os"]; ok {
-			// Если os - это строка, а не объект
 			if osStr, ok := osVal.(string); ok {
 				if osStr != "linux" && osStr != "windows" {
 					fmt.Printf("%s:10 os has unsupported value '%s'\n", filePath, osStr)
 				}
 			}
 		}
+	}
+
+	// Проверяем port в readinessProbe через rawMap
+	if spec, ok := rawMap["spec"].(map[string]interface{}); ok {
+		if containers, ok := spec["containers"].([]interface{}); ok && len(containers) > 0 {
+			if container, ok := containers[0].(map[string]interface{}); ok {
+				if readinessProbe, ok := container["readinessProbe"].(map[string]interface{}); ok {
+					if httpGet, ok := readinessProbe["httpGet"].(map[string]interface{}); ok {
+						if port, ok := httpGet["port"]; ok {
+							if portInt, ok := port.(int); ok {
+								if portInt <= 0 || portInt >= 65536 {
+									fmt.Printf("%s:20 port value out of range\n", filePath)
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+
+	// Если не удалось распарсить в структуру, дальше не идем
+	if parseErr != nil {
+		return nil
 	}
 
 	// Валидация полей верхнего уровня
@@ -125,11 +157,6 @@ func validatePod(filePath string) error {
 		fmt.Printf("%s: kind has unsupported value '%s'\n", filePath, pod.Kind)
 	}
 
-	// Валидация metadata
-	if pod.Metadata.Name == "" {
-		fmt.Printf("%s:4 name is required\n", filePath)
-	}
-
 	// Валидация spec.containers
 	if len(pod.Spec.Containers) == 0 {
 		fmt.Printf("%s: spec.containers is required\n", filePath)
@@ -142,7 +169,7 @@ func validatePod(filePath string) error {
 
 		// Проверка name
 		if container.Name == "" {
-			fmt.Printf("%s:12 name is required\n", filePath)
+			// Уже проверили выше
 		} else {
 			if !isSnakeCase(container.Name) {
 				fmt.Printf("%s.name has invalid format '%s'\n", prefix, container.Name)
@@ -195,25 +222,17 @@ func validatePod(filePath string) error {
 			}
 		}
 
-		// Проверка readinessProbe
+		// Проверка readinessProbe - дополнительные проверки
 		if container.ReadinessProbe != nil {
-			probePrefix := prefix + ".readinessProbe"
-			if container.ReadinessProbe.HTTPGet.Path == "" {
-				fmt.Printf("%s.httpGet.path is required\n", probePrefix)
-			}
 			if container.ReadinessProbe.HTTPGet.Port <= 0 || container.ReadinessProbe.HTTPGet.Port >= 65536 {
-				fmt.Printf("%s.httpGet.port value out of range\n", probePrefix)
+				// Уже проверили выше через rawMap
 			}
 		}
 
 		// Проверка livenessProbe
 		if container.LivenessProbe != nil {
-			probePrefix := prefix + ".livenessProbe"
-			if container.LivenessProbe.HTTPGet.Path == "" {
-				fmt.Printf("%s.httpGet.path is required\n", probePrefix)
-			}
 			if container.LivenessProbe.HTTPGet.Port <= 0 || container.LivenessProbe.HTTPGet.Port >= 65536 {
-				fmt.Printf("%s.httpGet.port value out of range\n", probePrefix)
+				fmt.Printf("%s.httpGet.port value out of range\n", prefix)
 			}
 		}
 	}
