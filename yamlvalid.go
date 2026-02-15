@@ -297,12 +297,7 @@ func validatePod(filePath string) error {
 			}
 		}
 
-		// Проверка livenessProbe (дополнительная проверка через структуру)
-		if container.LivenessProbe != nil {
-			if container.LivenessProbe.HTTPGet.Port <= 0 || container.LivenessProbe.HTTPGet.Port >= 65536 {
-				// Уже проверили выше через rawMap
-			}
-		}
+		// Проверка livenessProbe - пустой блок УДАЛЕН полностью
 	}
 
 	return nil
