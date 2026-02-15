@@ -1,3 +1,85 @@
+package main
+
+import (
+	"fmt"
+	"os"
+	"regexp"
+	"strconv"
+	"strings"
+
+	"gopkg.in/yaml.v3"
+)
+
+// Структуры для парсинга YAML
+type Pod struct {
+	APIVersion string   `yaml:"apiVersion"`
+	Kind       string   `yaml:"kind"`
+	Metadata   Metadata `yaml:"metadata"`
+	Spec       PodSpec  `yaml:"spec"`
+}
+
+type Metadata struct {
+	Name      string            `yaml:"name"`
+	Namespace string            `yaml:"namespace"`
+	Labels    map[string]string `yaml:"labels"`
+}
+
+type PodSpec struct {
+	OS         *PodOS      `yaml:"os,omitempty"`
+	Containers []Container `yaml:"containers"`
+}
+
+type PodOS struct {
+	Name string `yaml:"name"`
+}
+
+type Container struct {
+	Name           string               `yaml:"name"`
+	Image          string               `yaml:"image"`
+	Ports          []ContainerPort      `yaml:"ports"`
+	ReadinessProbe *Probe               `yaml:"readinessProbe"`
+	LivenessProbe  *Probe               `yaml:"livenessProbe"`
+	Resources      ResourceRequirements `yaml:"resources"`
+}
+
+type ContainerPort struct {
+	ContainerPort int    `yaml:"containerPort"`
+	Protocol      string `yaml:"protocol"`
+}
+
+type Probe struct {
+	HTTPGet HTTPGetAction `yaml:"httpGet"`
+}
+
+type HTTPGetAction struct {
+	Path string `yaml:"path"`
+	Port int    `yaml:"port"`
+}
+
+type ResourceRequirements struct {
+	Requests map[string]string `yaml:"requests"`
+	Limits   map[string]string `yaml:"limits"`
+}
+
+// Функция для проверки snake_case
+func isSnakeCase(s string) bool {
+	match, _ := regexp.MatchString("^[a-z]+(_[a-z]+)*$", s)
+	return match
+}
+
+// Функция для проверки формата memory (например, "500Mi", "1Gi", "512Ki")
+func isValidMemoryFormat(mem string) bool {
+	// Паттерн: число + (Ki|Mi|Gi)
+	match, _ := regexp.MatchString("^[0-9]+(Ki|Mi|Gi)$", mem)
+	return match
+}
+
+// Функция для проверки адреса образа
+func isValidImage(image string) bool {
+	// Должен быть в домене registry.bigbrother.io и содержать тег
+	return strings.HasPrefix(image, "registry.bigbrother.io/") && strings.Contains(image, ":")
+}
+
 // Основная функция валидации
 func validatePod(filePath string) error {
 	// Читаем файл
@@ -6,10 +88,11 @@ func validatePod(filePath string) error {
 		return fmt.Errorf("cannot read file: %v", err)
 	}
 
-	// Парсим YAML
+	// Парсим YAML в структуру
 	var pod Pod
 	err = yaml.Unmarshal(content, &pod)
 	if err != nil {
+		// Если не удалось распарсить, пробуем другой способ для диагностики
 		return fmt.Errorf("invalid YAML format: %v", err)
 	}
 
@@ -136,4 +219,19 @@ func validatePod(filePath string) error {
 	}
 
 	return nil
+}
+
+func runValidator() {
+	if len(os.Args) != 2 {
+		fmt.Println("Usage: yamlvalid <path-to-yaml-file>")
+		os.Exit(1)
+	}
+
+	filePath := os.Args[1]
+
+	err := validatePod(filePath)
+	if err != nil {
+		fmt.Printf("Error: %v\n", err)
+		os.Exit(1)
+	}
 }
