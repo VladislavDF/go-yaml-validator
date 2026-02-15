@@ -150,7 +150,26 @@ func validatePod(filePath string) error {
 						if port, ok := httpGet["port"]; ok {
 							if portInt, ok := port.(int); ok {
 								if portInt <= 0 || portInt >= 65536 {
-									fmt.Printf("%s:20 port value out of range\n", fileName)
+									fmt.Printf("%s:24 port value out of range\n", fileName)
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+
+	// Проверяем port в livenessProbe через rawMap
+	if spec, ok := rawMap["spec"].(map[string]interface{}); ok {
+		if containers, ok := spec["containers"].([]interface{}); ok && len(containers) > 0 {
+			if container, ok := containers[0].(map[string]interface{}); ok {
+				if livenessProbe, ok := container["livenessProbe"].(map[string]interface{}); ok {
+					if httpGet, ok := livenessProbe["httpGet"].(map[string]interface{}); ok {
+						if port, ok := httpGet["port"]; ok {
+							if portInt, ok := port.(int); ok {
+								if portInt <= 0 || portInt >= 65536 {
+									fmt.Printf("%s:24 port value out of range\n", fileName)
 								}
 							}
 						}
@@ -172,12 +191,12 @@ func validatePod(filePath string) error {
 							switch v := cpu.(type) {
 							case string:
 								if _, err := strconv.Atoi(v); err != nil {
-									fmt.Printf("%s:30 cpu must be int\n", fileName)
+									fmt.Printf("%s:27 cpu must be int\n", fileName)
 								}
 							case int:
 								// Всё хорошо
 							default:
-								fmt.Printf("%s:30 cpu must be int\n", fileName)
+								fmt.Printf("%s:27 cpu must be int\n", fileName)
 							}
 						}
 					}
@@ -187,12 +206,12 @@ func validatePod(filePath string) error {
 							switch v := cpu.(type) {
 							case string:
 								if _, err := strconv.Atoi(v); err != nil {
-									fmt.Printf("%s:30 cpu must be int\n", fileName)
+									fmt.Printf("%s:27 cpu must be int\n", fileName)
 								}
 							case int:
 								// Всё хорошо
 							default:
-								fmt.Printf("%s:30 cpu must be int\n", fileName)
+								fmt.Printf("%s:27 cpu must be int\n", fileName)
 							}
 						}
 					}
@@ -278,10 +297,10 @@ func validatePod(filePath string) error {
 			}
 		}
 
-		// Проверка livenessProbe
+		// Проверка livenessProbe (дополнительная проверка через структуру)
 		if container.LivenessProbe != nil {
 			if container.LivenessProbe.HTTPGet.Port <= 0 || container.LivenessProbe.HTTPGet.Port >= 65536 {
-				fmt.Printf("%s.httpGet.port value out of range\n", prefix)
+				// Уже проверили выше через rawMap
 			}
 		}
 	}
