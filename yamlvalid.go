@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"regexp"
 	"strconv"
 	"strings"
@@ -82,6 +83,9 @@ func isValidImage(image string) bool {
 
 // Основная функция валидации
 func validatePod(filePath string) error {
+	// Получаем только имя файла без пути
+	fileName := filepath.Base(filePath)
+
 	// Читаем файл
 	content, err := os.ReadFile(filePath)
 	if err != nil {
@@ -100,10 +104,10 @@ func validatePod(filePath string) error {
 	if meta, ok := rawMap["metadata"].(map[string]interface{}); ok {
 		if name, ok := meta["name"]; ok {
 			if nameStr, ok := name.(string); ok && nameStr == "" {
-				fmt.Printf("%s:4 name is required\n", filePath)
+				fmt.Printf("%s:4 name is required\n", fileName)
 			}
 		} else {
-			fmt.Printf("%s:4 name is required\n", filePath)
+			fmt.Printf("%s:4 name is required\n", fileName)
 		}
 	}
 
@@ -112,7 +116,7 @@ func validatePod(filePath string) error {
 		if osVal, ok := spec["os"]; ok {
 			if osStr, ok := osVal.(string); ok {
 				if osStr != "linux" && osStr != "windows" {
-					fmt.Printf("%s:10 os has unsupported value '%s'\n", filePath, osStr)
+					fmt.Printf("%s:10 os has unsupported value '%s'\n", fileName, osStr)
 				}
 			}
 		}
@@ -127,7 +131,7 @@ func validatePod(filePath string) error {
 						if port, ok := httpGet["port"]; ok {
 							if portInt, ok := port.(int); ok {
 								if portInt <= 0 || portInt >= 65536 {
-									fmt.Printf("%s:20 port value out of range\n", filePath)
+									fmt.Printf("%s:20 port value out of range\n", fileName)
 								}
 							}
 						}
@@ -144,28 +148,28 @@ func validatePod(filePath string) error {
 
 	// Валидация полей верхнего уровня
 	if pod.APIVersion == "" {
-		fmt.Printf("%s: apiVersion is required\n", filePath)
+		fmt.Printf("%s: apiVersion is required\n", fileName)
 	}
 	if pod.APIVersion != "" && pod.APIVersion != "v1" {
-		fmt.Printf("%s: apiVersion has unsupported value '%s'\n", filePath, pod.APIVersion)
+		fmt.Printf("%s: apiVersion has unsupported value '%s'\n", fileName, pod.APIVersion)
 	}
 
 	if pod.Kind == "" {
-		fmt.Printf("%s: kind is required\n", filePath)
+		fmt.Printf("%s: kind is required\n", fileName)
 	}
 	if pod.Kind != "" && pod.Kind != "Pod" {
-		fmt.Printf("%s: kind has unsupported value '%s'\n", filePath, pod.Kind)
+		fmt.Printf("%s: kind has unsupported value '%s'\n", fileName, pod.Kind)
 	}
 
 	// Валидация spec.containers
 	if len(pod.Spec.Containers) == 0 {
-		fmt.Printf("%s: spec.containers is required\n", filePath)
+		fmt.Printf("%s: spec.containers is required\n", fileName)
 	}
 
 	// Валидация каждого контейнера
 	containerNames := make(map[string]bool)
 	for i, container := range pod.Spec.Containers {
-		prefix := fmt.Sprintf("%s: spec.containers[%d]", filePath, i)
+		prefix := fmt.Sprintf("%s: spec.containers[%d]", fileName, i)
 
 		// Проверка name
 		if container.Name == "" {
@@ -203,7 +207,7 @@ func validatePod(filePath string) error {
 				if key == "cpu" {
 					// Проверяем что cpu это число
 					if _, err := strconv.Atoi(value); err != nil {
-						fmt.Printf("%s:30 cpu must be int\n", filePath)
+						fmt.Printf("%s:30 cpu must be int\n", fileName)
 					}
 				}
 			}
@@ -219,13 +223,6 @@ func validatePod(filePath string) error {
 
 			if port.Protocol != "" && port.Protocol != "TCP" && port.Protocol != "UDP" {
 				fmt.Printf("%s.protocol has unsupported value '%s'\n", portPrefix, port.Protocol)
-			}
-		}
-
-		// Проверка readinessProbe - дополнительные проверки
-		if container.ReadinessProbe != nil {
-			if container.ReadinessProbe.HTTPGet.Port <= 0 || container.ReadinessProbe.HTTPGet.Port >= 65536 {
-				// Уже проверили выше через rawMap
 			}
 		}
 
