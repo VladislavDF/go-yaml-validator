@@ -160,6 +160,47 @@ func validatePod(filePath string) error {
 		}
 	}
 
+	// Проверяем cpu в resources через rawMap
+	if spec, ok := rawMap["spec"].(map[string]interface{}); ok {
+		if containers, ok := spec["containers"].([]interface{}); ok && len(containers) > 0 {
+			if container, ok := containers[0].(map[string]interface{}); ok {
+				if resources, ok := container["resources"].(map[string]interface{}); ok {
+					// Проверяем limits.cpu
+					if limits, ok := resources["limits"].(map[string]interface{}); ok {
+						if cpu, ok := limits["cpu"]; ok {
+							// CPU может быть числом или строкой
+							switch v := cpu.(type) {
+							case string:
+								if _, err := strconv.Atoi(v); err != nil {
+									fmt.Printf("%s:30 cpu must be int\n", fileName)
+								}
+							case int:
+								// Всё хорошо
+							default:
+								fmt.Printf("%s:30 cpu must be int\n", fileName)
+							}
+						}
+					}
+					// Проверяем requests.cpu
+					if requests, ok := resources["requests"].(map[string]interface{}); ok {
+						if cpu, ok := requests["cpu"]; ok {
+							switch v := cpu.(type) {
+							case string:
+								if _, err := strconv.Atoi(v); err != nil {
+									fmt.Printf("%s:30 cpu must be int\n", fileName)
+								}
+							case int:
+								// Всё хорошо
+							default:
+								fmt.Printf("%s:30 cpu must be int\n", fileName)
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+
 	// Если не удалось распарсить в структуру, дальше не идем
 	if parseErr != nil {
 		return nil
@@ -223,12 +264,7 @@ func validatePod(filePath string) error {
 				if key == "memory" && !isValidMemoryFormat(value) {
 					fmt.Printf("%s.resources.limits.memory has invalid format '%s'\n", prefix, value)
 				}
-				if key == "cpu" {
-					// Проверяем что cpu это число
-					if _, err := strconv.Atoi(value); err != nil {
-						fmt.Printf("%s:30 cpu must be int\n", fileName)
-					}
-				}
+				// Пустой блок для cpu удален
 			}
 		}
 
@@ -236,10 +272,7 @@ func validatePod(filePath string) error {
 		for j, port := range container.Ports {
 			portPrefix := fmt.Sprintf("%s.ports[%d]", prefix, j)
 
-			if port.ContainerPort <= 0 || port.ContainerPort >= 65536 {
-				// Уже проверили выше через rawMap
-			}
-
+			// Проверка протокола (порт уже проверили выше)
 			if port.Protocol != "" && port.Protocol != "TCP" && port.Protocol != "UDP" {
 				fmt.Printf("%s.protocol has unsupported value '%s'\n", portPrefix, port.Protocol)
 			}
