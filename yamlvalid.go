@@ -122,6 +122,25 @@ func validatePod(filePath string) error {
 		}
 	}
 
+	// Проверяем containerPort в ports через rawMap
+	if spec, ok := rawMap["spec"].(map[string]interface{}); ok {
+		if containers, ok := spec["containers"].([]interface{}); ok && len(containers) > 0 {
+			if container, ok := containers[0].(map[string]interface{}); ok {
+				if ports, ok := container["ports"].([]interface{}); ok && len(ports) > 0 {
+					if portObj, ok := ports[0].(map[string]interface{}); ok {
+						if containerPort, ok := portObj["containerPort"]; ok {
+							if portInt, ok := containerPort.(int); ok {
+								if portInt <= 0 || portInt >= 65536 {
+									fmt.Printf("%s:15 containerPort value out of range\n", fileName)
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+
 	// Проверяем port в readinessProbe через rawMap
 	if spec, ok := rawMap["spec"].(map[string]interface{}); ok {
 		if containers, ok := spec["containers"].([]interface{}); ok && len(containers) > 0 {
@@ -213,12 +232,12 @@ func validatePod(filePath string) error {
 			}
 		}
 
-		// Проверка ports
+		// Проверка ports (дополнительная проверка через структуру)
 		for j, port := range container.Ports {
 			portPrefix := fmt.Sprintf("%s.ports[%d]", prefix, j)
 
 			if port.ContainerPort <= 0 || port.ContainerPort >= 65536 {
-				fmt.Printf("%s.containerPort value out of range\n", portPrefix)
+				// Уже проверили выше через rawMap
 			}
 
 			if port.Protocol != "" && port.Protocol != "TCP" && port.Protocol != "UDP" {
